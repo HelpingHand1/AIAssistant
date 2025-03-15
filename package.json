@@ -1,0 +1,81 @@
+{
+  "name": "my-ai-assistant",
+  "displayName": "My AI Assistant",
+  "version": "1.0.0",
+  "description": "An AI-powered coding assistant rivaling Cursor, with project-wide edits, inline suggestions, refactoring, and chat support",
+  "main": "./out/extension.js",
+  "scripts": {
+    "compile": "tsc",
+    "watch": "tsc -watch",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "vscode:prepublish": "npm run compile"
+  },
+  "keywords": [
+    "ai",
+    "coding assistant",
+    "refactoring",
+    "chat",
+    "typescript"
+  ],
+  "author": "Nolan",
+  "license": "ISC",
+  "engines": {
+    "vscode": "^1.98.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other",
+    "Snippets"
+  ],
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:javascript"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.helloWorld",
+        "title": "Hello World"
+      },
+      {
+        "command": "extension.modifyProject",
+        "title": "AI: Modify Project"
+      },
+      {
+        "command": "extension.openChat",
+        "title": "AI: Open Chat"
+      }
+    ],
+    "languages": [
+      {
+        "id": "typescript",
+        "extensions": [".ts", ".tsx"]
+      },
+      {
+        "id": "javascript",
+        "extensions": [".js", ".jsx"]
+      }
+    ],
+    "configuration": {
+      "title": "My AI Assistant",
+      "properties": {
+        "myAiAssistant.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI API key for AI features"
+        }
+      }
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/vscode": "^1.98.0",
+    "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "axios": "^1.8.3"
+  },
+  "overrides": {
+    "follow-redirects": "^1.15.6"
+  }
+}

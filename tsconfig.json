@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    // Where TypeScript will place compiled .js files
+    "outDir": "./out",
+
+    // Where your source .ts files live
+    "rootDir": "./src",
+
+    // Which JavaScript version is emitted
+    "target": "es6",
+    
+    // Must be "commonjs" for VS Code extensions
+    "module": "commonjs",
+
+    // Libraries we’re using (optional but often helpful)
+    "lib": ["es6"],
+
+    // Strict type checking
+    "strict": true,
+
+    // Easier import/export compatibility
+    "esModuleInterop": true,
+
+    // Enforces consistent import-case usage
+    "forceConsistentCasingInFileNames": true,
+
+    // Skips type checking in .d.ts files (common in many projects)
+    "skipLibCheck": true
+  }
+}

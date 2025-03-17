@@ -1,84 +1,87 @@
 {
-  "name": "my-ai-assistant",
-  "displayName": "My AI Assistant",
-  "version": "1.1.0",
-  "description": "A custom AI-powered assistant for VS Code to enhance coding productivity with AI-driven features.",
-  "main": "./out/extension.js",
-  "scripts": {
-    "clean": "rm -rf out",
-    "compile": "tsc -p ./ && mkdir -p out/src && cp package.json out/src/ && mkdir -p out/test && cp package.json out/test/",
-    "test": "npm run compile && node ./out/test/runTest.js",
-    "watch": "tsc -watch -p ./"
-  },
-  "keywords": [
-    "ai",
-    "coding assistant",
-    "react",
-    "typescript",
-    "productivity"
-  ],
-  "author": "Nolan",
-  "license": "MIT",
-  "engines": {
-    "vscode": "^1.98.0"
-  },
-  "categories": [
-    "Other",
-    "Programming Languages",
-    "AI",
-    "Chat"
-  ],
-  "activationEvents": [],
-  "contributes": {
-    "commands": [
-      {
-        "command": "extension.helloWorld",
-        "title": "Hello World"
-      },
-      {
-        "command": "extension.modifyProject",
-        "title": "AI: Modify Project"
-      },
-      {
-        "command": "extension.editSelection",
-        "title": "AI: Edit Selection"
-      },
-      {
-        "command": "extension.openChat",
-        "title": "AI: Open Chat"
-      }
+    "name": "my-ai-assistant",
+    "displayName": "My AI Assistant",
+    "version": "1.1.0",
+    "description": "A custom AI-powered assistant for VS Code to enhance coding productivity with AI-driven features.",
+    "main": "./out/extension.js",
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "test": "npm run compile && node ./out/test/runTest.js"
+    },
+    "keywords": [
+        "ai",
+        "coding assistant",
+        "react",
+        "typescript",
+        "productivity"
     ],
-    "configuration": {
-      "title": "My AI Assistant",
-      "properties": {
-        "myAiAssistant.apiKey": {
-          "type": "string",
-          "default": "",
-          "description": "Your OpenAI API key."
-        },
-        "myAiAssistant.model": {
-          "type": "string",
-          "default": "gpt-3.5-turbo",
-          "enum": [
-            "gpt-3.5-turbo",
-            "gpt-4"
-          ],
-          "description": "The OpenAI model to use."
+    "author": "Nolan",
+    "license": "MIT",
+    "engines": {
+        "vscode": "^1.98.0"
+    },
+    "categories": [
+        "Other",
+        "Programming Languages",
+        "AI",
+        "Chat"
+    ],
+    "activationEvents": [
+        "onLanguage:typescript",
+        "onLanguage:javascript"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "command": "extension.helloWorld",
+                "title": "Hello World"
+            },
+            {
+                "command": "extension.modifyProject",
+                "title": "AI: Modify Project (Advanced)"
+            },
+            {
+                "command": "extension.editSelection",
+                "title": "AI: Edit Selection"
+            },
+            {
+                "command": "extension.openChat",
+                "title": "AI: Open Chat"
+            }
+        ],
+        "configuration": {
+            "title": "My AI Assistant",
+            "properties": {
+                "myAiAssistant.apiKey": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Your OpenAI API key."
+                },
+                "myAiAssistant.model": {
+                    "type": "string",
+                    "default": "gpt-3.5-turbo",
+                    "enum": [
+                        "gpt-3.5-turbo",
+                        "gpt-4"
+                    ],
+                    "description": "The OpenAI model to use."
+                }
+            }
         }
-      }
+    },
+    "devDependencies": {
+        "@types/lodash": "^4.17.10",
+        "@types/mocha": "^10.0.10",
+        "@types/node": "^22.13.10",
+        "@types/vscode": "^1.98.0",
+        "@vscode/test-electron": "^2.4.1",
+        "mocha": "^11.1.0",
+        "typescript": "^5.8.2"
+    },
+    "dependencies": {
+        "axios": "^1.8.3",
+        "lodash": "^4.17.21"
     }
-  },
-  "devDependencies": {
-    "@types/lodash": "^4.17.10",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "^22.13.10",
-    "@types/vscode": "^1.98.0",
-    "@vscode/test-electron": "^2.4.1",
-    "mocha": "^11.1.0",
-    "typescript": "^5.8.2"
-  },
-  "dependencies": {
-    "axios": "^1.8.3",
-    "lodash": "^4.17.21"
-  }
 }

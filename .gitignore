@@ -10,3 +10,6 @@ Thumbs.db
 
 # Ignore environment or sensitive files
 .env
+
+.vscode-test/
+*.log

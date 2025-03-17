@@ -1,30 +1,29 @@
 {
   "compilerOptions": {
-    // Where TypeScript will place compiled .js files
+    "target": "ES2020",
+    "module": "CommonJS",
     "outDir": "./out",
-
-    // Where your source .ts files live
-    "rootDir": "./src",
-
-    // Which JavaScript version is emitted
-    "target": "es6",
-    
-    // Must be "commonjs" for VS Code extensions
-    "module": "commonjs",
-
-    // Libraries we’re using (optional but often helpful)
-    "lib": ["es6"],
-
-    // Strict type checking
+    "rootDir": "./",
     "strict": true,
-
-    // Easier import/export compatibility
     "esModuleInterop": true,
-
-    // Enforces consistent import-case usage
+    "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-
-    // Skips type checking in .d.ts files (common in many projects)
-    "skipLibCheck": true
-  }
+    "resolveJsonModule": true,
+    "typeRoots": [
+      "./node_modules/@types"
+    ],
+    "baseUrl": "./",
+    "paths": {
+      "*": ["src/*"]
+    }
+  },
+  "include": [
+    "src/**/*",
+    "test/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/*.test.js",
+    "**/*.spec.js"
+  ]
 }

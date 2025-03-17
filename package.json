@@ -1,24 +1,39 @@
 {
   "name": "my-ai-assistant",
   "displayName": "My AI Assistant",
-  "description": "An AI-powered assistant for VS Code, rivaling Cursor with project-wide edits, inline suggestions, and chat.",
-  "version": "0.0.1",
+  "version": "1.1.0",
+  "description": "A custom AI-powered assistant for VS Code to enhance coding productivity with AI-driven features.",
+  "main": "./out/extension.js",
+  "scripts": {
+    "clean": "rm -rf out",
+    "compile": "tsc -p ./ && mkdir -p out/src && cp package.json out/src/ && mkdir -p out/test && cp package.json out/test/",
+    "test": "npm run compile && node ./out/test/runTest.js",
+    "watch": "tsc -watch -p ./"
+  },
+  "keywords": [
+    "ai",
+    "coding assistant",
+    "react",
+    "typescript",
+    "productivity"
+  ],
+  "author": "Nolan",
+  "license": "MIT",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.98.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Programming Languages",
+    "AI",
+    "Chat"
   ],
-  "activationEvents": [
-    "onLanguage:typescript",
-    "onLanguage:javascript"
-  ],
-  "main": "./out/extension.js",
+  "activationEvents": [],
   "contributes": {
     "commands": [
       {
         "command": "extension.helloWorld",
-        "title": "AI: Hello World"
+        "title": "Hello World"
       },
       {
         "command": "extension.modifyProject",
@@ -33,65 +48,37 @@
         "title": "AI: Open Chat"
       }
     ],
-    "keybindings": [
-      {
-        "command": "extension.modifyProject",
-        "key": "ctrl+shift+m",
-        "mac": "cmd+shift+m",
-        "when": "editorTextFocus"
-      },
-      {
-        "command": "extension.editSelection",
-        "key": "ctrl+shift+e",
-        "mac": "cmd+shift+e",
-        "when": "editorTextFocus && editorHasSelection"
-      },
-      {
-        "command": "extension.openChat",
-        "key": "ctrl+shift+c",
-        "mac": "cmd+shift+c",
-        "when": "editorTextFocus"
-      }
-    ],
     "configuration": {
       "title": "My AI Assistant",
       "properties": {
         "myAiAssistant.apiKey": {
           "type": "string",
           "default": "",
-          "description": "OpenAI API key for AI features."
+          "description": "Your OpenAI API key."
         },
         "myAiAssistant.model": {
           "type": "string",
-          "default": "gpt-4",
-          "enum": ["gpt-4", "gpt-3.5-turbo"],
-          "description": "OpenAI model to use for AI features."
+          "default": "gpt-3.5-turbo",
+          "enum": [
+            "gpt-3.5-turbo",
+            "gpt-4"
+          ],
+          "description": "The OpenAI model to use."
         }
       }
     }
   },
-  "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src --ext ts",
-    "test": "vscode-test"
-  },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
-    "@types/node": "18.x",
-    "@typescript-eslint/eslint-plugin": "^7.0.2",
-    "@typescript-eslint/parser": "^7.0.2",
-    "eslint": "^8.56.0",
-    "typescript": "^5.3.3",
-    "@vscode/test-cli": "^0.0.4",
-    "@vscode/test-electron": "^2.3.9"
+    "@types/lodash": "^4.17.10",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.13.10",
+    "@types/vscode": "^1.98.0",
+    "@vscode/test-electron": "^2.4.1",
+    "mocha": "^11.1.0",
+    "typescript": "^5.8.2"
   },
   "dependencies": {
-    "axios": "^1.6.7"
-  },
-  "overrides": {
-    "follow-redirects": "^1.15.6"
+    "axios": "^1.8.3",
+    "lodash": "^4.17.21"
   }
 }

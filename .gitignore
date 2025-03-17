@@ -1,2 +1,12 @@
+# Ignore compiled output
+out/
+
+# Ignore node modules
 node_modules/
-.vscode/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore environment or sensitive files
+.env

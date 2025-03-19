@@ -1,87 +1,96 @@
 {
-    "name": "my-ai-assistant",
-    "displayName": "My AI Assistant",
-    "version": "1.1.0",
-    "description": "A custom AI-powered assistant for VS Code to enhance coding productivity with AI-driven features.",
-    "main": "./out/extension.js",
-    "scripts": {
-        "vscode:prepublish": "npm run compile",
-        "compile": "tsc -p ./",
-        "watch": "tsc -watch -p ./",
-        "test": "npm run compile && node ./out/test/runTest.js"
-    },
-    "keywords": [
-        "ai",
-        "coding assistant",
-        "react",
-        "typescript",
-        "productivity"
+  "name": "my-ai-assistant",
+  "displayName": "My AI Assistant",
+  "version": "1.2.0",
+  "publisher": "HelpingHand1",
+  "description": "A custom AI-powered assistant for VS Code to enhance coding productivity with AI-driven features.",
+  "main": "./out/extension.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HelpingHand1/AIAssistant.git"
+  },
+  "bugs": {
+    "url": "https://github.com/HelpingHand1/AIAssistant/issues"
+  },
+  "homepage": "https://github.com/HelpingHand1/AIAssistant",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "npm run compile && node ./out/test/runTest.js"
+  },
+  "keywords": [
+    "ai",
+    "coding assistant",
+    "react",
+    "typescript",
+    "productivity"
+  ],
+  "author": "Nolan",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages",
+    "AI",
+    "Chat"
+  ],
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:javascript"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.helloWorld",
+        "title": "Hello World"
+      },
+      {
+        "command": "extension.modifyProject",
+        "title": "AI: Modify Project"
+      },
+      {
+        "command": "extension.editSelection",
+        "title": "AI: Edit Selection"
+      },
+      {
+        "command": "extension.openChat",
+        "title": "AI: Open Chat"
+      }
     ],
-    "author": "Nolan",
-    "license": "MIT",
-    "engines": {
-        "vscode": "^1.98.0"
-    },
-    "categories": [
-        "Other",
-        "Programming Languages",
-        "AI",
-        "Chat"
-    ],
-    "activationEvents": [
-        "onLanguage:typescript",
-        "onLanguage:javascript"
-    ],
-    "contributes": {
-        "commands": [
-            {
-                "command": "extension.helloWorld",
-                "title": "Hello World"
-            },
-            {
-                "command": "extension.modifyProject",
-                "title": "AI: Modify Project (Advanced)"
-            },
-            {
-                "command": "extension.editSelection",
-                "title": "AI: Edit Selection"
-            },
-            {
-                "command": "extension.openChat",
-                "title": "AI: Open Chat"
-            }
-        ],
-        "configuration": {
-            "title": "My AI Assistant",
-            "properties": {
-                "myAiAssistant.apiKey": {
-                    "type": "string",
-                    "default": "",
-                    "description": "Your OpenAI API key."
-                },
-                "myAiAssistant.model": {
-                    "type": "string",
-                    "default": "gpt-3.5-turbo",
-                    "enum": [
-                        "gpt-3.5-turbo",
-                        "gpt-4"
-                    ],
-                    "description": "The OpenAI model to use."
-                }
-            }
+    "configuration": {
+      "title": "My AI Assistant",
+      "properties": {
+        "myAiAssistant.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Your OpenAI API key."
+        },
+        "myAiAssistant.model": {
+          "type": "string",
+          "default": "gpt-4",
+          "enum": [
+            "gpt-3.5-turbo",
+            "gpt-4"
+          ],
+          "description": "The OpenAI model to use."
         }
-    },
-    "devDependencies": {
-        "@types/lodash": "^4.17.10",
-        "@types/mocha": "^10.0.10",
-        "@types/node": "^22.13.10",
-        "@types/vscode": "^1.98.0",
-        "@vscode/test-electron": "^2.4.1",
-        "mocha": "^11.1.0",
-        "typescript": "^5.8.2"
-    },
-    "dependencies": {
-        "axios": "^1.8.3",
-        "lodash": "^4.17.21"
+      }
     }
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.17.10",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.7.4",
+    "@types/vscode": "^1.92.0",
+    "@vscode/test-electron": "^2.4.1",
+    "mocha": "^11.1.0",
+    "typescript": "^5.6.2"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "lodash": "^4.17.21"
+  }
 }

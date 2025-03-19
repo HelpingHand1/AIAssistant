@@ -1,0 +1,22 @@
+# Exclude node_modules (contains many JS files)
+node_modules
+
+# Exclude test files and directories
+test
+out/test
+
+# Exclude TypeScript source files (since compiled JS is in out/)
+src
+
+# Exclude development configuration files
+tsconfig.json
+
+# Exclude Git-related files (already tracked by Git)
+.git
+.gitignore
+
+# Exclude other unnecessary files
+*.log
+*.md
+*.txt
+.vscode

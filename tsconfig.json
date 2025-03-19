@@ -20,5 +20,6 @@
       "noImplicitReturns": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "**/*.test.js", "**/*.spec.js"]
+  "exclude": ["node_modules", "**/*.test.js", "**/*.spec.js"],
+  "preLaunchTask": "npm: compile"
 }

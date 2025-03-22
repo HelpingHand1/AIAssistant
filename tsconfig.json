@@ -21,8 +21,15 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "types": ["node", "vscode", "mocha", "glob", "sinon", "axios-mock-adapter"],
-    "lib": ["ES2022"]
+    "lib": ["ES2022", "DOM"],     // <-- Added DOM for browser types
+    "jsx": "react"                // <-- or "react-jsx" if on TS 4.1+ with React 17+
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "**/*.test.ts", "**/*.spec.ts", "**/*.test.js", "**/*.spec.js"]
+  "exclude": [
+    "node_modules",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/*.test.js",
+    "**/*.spec.js"
+  ]
 }

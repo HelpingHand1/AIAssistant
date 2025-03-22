@@ -9,6 +9,7 @@ export async function readDirectoryRecursive(uri: vscode.Uri): Promise<FileData[
     const entries = await vscode.workspace.fs.readDirectory(uri);
     const files: FileData[] = [];
     const openFiles = vscode.window.visibleTextEditors.map(e => e.document.uri.fsPath);
+
     for (const [name, fileType] of entries) {
         const fileUri = vscode.Uri.file(path.join(uri.fsPath, name));
         if (fileType === vscode.FileType.File && /\.(ts|js)$/.test(name) && openFiles.includes(fileUri.fsPath)) {
@@ -59,11 +60,15 @@ export async function buildProjectIndex(): Promise<void> {
 export async function deletePath(filePath: string): Promise<void> {
     const sanitizedPath = sanitizeFilePath(filePath);
     const uri = vscode.Uri.file(sanitizedPath);
+
+    // Close any open editor for this file/folder
     for (const editor of vscode.window.visibleTextEditors) {
         if (editor.document.uri.fsPath === uri.fsPath) {
             await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
         }
     }
+
+    // Attempt to delete
     try {
         await vscode.workspace.fs.delete(uri, { recursive: true, useTrash: true });
         console.log(`Deleted ${sanitizedPath}`);
@@ -80,6 +85,15 @@ export async function applyResponseChanges(
     workspaceFolders: readonly vscode.WorkspaceFolder[] // Changed to readonly
 ): Promise<void> {
     console.log('Entering applyResponseChanges with response:', parsedResponse);
+
+    // If the AI returned no actions array, just show the message or skip modifications
+    if (!parsedResponse.actions || !Array.isArray(parsedResponse.actions)) {
+        console.warn("[applyResponseChanges] No 'actions' array in the AI response. Skipping file modifications.");
+        if (parsedResponse.message) {
+            vscode.window.showInformationMessage(parsedResponse.message);
+        }
+        return;
+    }
 
     // Skip confirmation for insertText actions (used by suggestCode)
     const requiresConfirmation = !parsedResponse.actions.every(action => action.type === 'insertText');
@@ -133,11 +147,13 @@ export async function applyResponseChanges(
                             console.log(`Created folder: ${sanitizedPath}`);
                         }
                         break;
+
                     case 'createFile':
                         if (!uri) throw new Error('Path is required for createFile action.');
                         await vscode.workspace.fs.writeFile(uri, Buffer.from(action.content || '', 'utf8'));
                         console.log(`Created/Updated file: ${sanitizedPath} with content length: ${action.content?.length || 0}`);
                         break;
+
                     case 'editFile':
                         if (!uri) throw new Error('Path is required for editFile action.');
                         if (action.range && action.newText) {
@@ -154,16 +170,19 @@ export async function applyResponseChanges(
                             if (!success) allSucceeded = false;
                         }
                         break;
+
                     case 'deleteFile':
                         if (!fullPath) throw new Error('Path is required for deleteFile action.');
                         await deletePath(fullPath);
                         console.log(`Deleted file: ${sanitizedPath}`);
                         break;
+
                     case 'deleteFolder':
                         if (!fullPath) throw new Error('Path is required for deleteFolder action.');
                         await deletePath(fullPath);
                         console.log(`Deleted folder: ${sanitizedPath}`);
                         break;
+
                     case 'insertText': {
                         const editor = vscode.window.activeTextEditor;
                         if (!editor) {

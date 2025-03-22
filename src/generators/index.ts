@@ -1,26 +1,26 @@
-import { AiResponse } from '../types';
+// src/generators/index.ts
+import { AiResponse, FileAction } from '../types';
 
-// Interface for a response generator
+// Define the ResponseGenerator interface
 export interface ResponseGenerator {
-    name: string; // Unique name of the generator (e.g., "snakeGame")
-    patterns: RegExp[]; // Patterns to match user input (e.g., [/snake game/i])
-    generate: (message: string) => Promise<AiResponse> | AiResponse; // Function to generate the response
+  name: string;
+  description: string;
+  detect: (input: string) => boolean;
+  generate: (input: string) => Promise<AiResponse>;
 }
 
-// Registry to hold all generators
+// Registry to store all generators
 const generators: ResponseGenerator[] = [];
 
-// Register a generator
+// Function to register a new generator
 export function registerGenerator(generator: ResponseGenerator): void {
-    generators.push(generator);
+  generators.push(generator);
 }
 
-// Find a generator that matches the input message
-export function findGenerator(message: string): ResponseGenerator | undefined {
-    return generators.find(generator =>
-        generator.patterns.some(pattern => pattern.test(message))
-    );
+// Function to find the appropriate generator for a given input
+export function findGenerator(input: string): ResponseGenerator | undefined {
+  return generators.find(generator => generator.detect(input));
 }
 
-// Export all generators (for importing in other files)
-export { generators };
+// Re-export types that might be needed by generators
+export { AiResponse, FileAction };

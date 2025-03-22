@@ -1,5 +1,11 @@
 {
     "cSpell.words": [
         "Segoe"
-    ]
-}
+    ],
+    // ... other user settings
+    "myAiAssistant.openaiApiKey": "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",
+    "myAiAssistant.anthropicApiKey": "claudeKEYHERE",
+    "myAiAssistant.model": "gpt-4",
+    "myAiAssistant.autoApplyChanges": true
+  }
+  

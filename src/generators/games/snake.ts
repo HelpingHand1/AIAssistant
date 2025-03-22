@@ -4,7 +4,26 @@ import { createCanvasGameBoilerplate, createKeyHandler } from '../../utils';
 
 const snakeGameGenerator: ResponseGenerator = {
     name: 'snakeGame',
-    patterns: [/snake game/i, /create.*snake/i, /make.*snake/i],
+    description: 'Creates a classic Snake game where players control a snake to eat food and grow longer',
+    
+    detect: (input: string): boolean => {
+        // Detection patterns for snake game requests
+        const keywords = ['snake game', 'snake', 'snake app'];
+        const actions = ['create', 'make', 'build', 'generate', 'develop'];
+        
+        // Check for direct mentions
+        const directMatch = keywords.some(keyword => 
+            input.toLowerCase().includes(keyword));
+            
+        // Check for action + keyword combinations
+        const actionMatch = actions.some(action => 
+            keywords.some(keyword => 
+                input.toLowerCase().includes(`${action} ${keyword}`) || 
+                input.toLowerCase().includes(`${action} a ${keyword}`)));
+                
+        return directMatch || actionMatch;
+    },
+    
     generate: async (_message: string): Promise<AiResponse> => {
         return {
             actions: [

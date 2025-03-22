@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { FileData, ProjectIndexItem, AiResponse, ChatHistoryItem } from './types';
+import { sanitizeFilePath } from './utils';
 
 export let projectIndex: ProjectIndexItem[] = [];
 
@@ -56,7 +57,8 @@ export async function buildProjectIndex(): Promise<void> {
 }
 
 export async function deletePath(filePath: string): Promise<void> {
-    const uri = vscode.Uri.file(filePath);
+    const sanitizedPath = sanitizeFilePath(filePath);
+    const uri = vscode.Uri.file(sanitizedPath);
     for (const editor of vscode.window.visibleTextEditors) {
         if (editor.document.uri.fsPath === uri.fsPath) {
             await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
@@ -64,68 +66,80 @@ export async function deletePath(filePath: string): Promise<void> {
     }
     try {
         await vscode.workspace.fs.delete(uri, { recursive: true, useTrash: true });
-        console.log(`Deleted ${filePath}`);
+        console.log(`Deleted ${sanitizedPath}`);
     } catch (e) {
-        console.error(`Failed to delete ${filePath}: ${e instanceof Error ? e.message : String(e)}`);
+        console.error(`Failed to delete ${sanitizedPath}: ${e instanceof Error ? e.message : String(e)}`);
         throw e;
     }
 }
 
-export async function applyResponseChanges(parsedResponse: AiResponse, panel: vscode.WebviewPanel, context: vscode.ExtensionContext, workspaceFolders: vscode.WorkspaceFolder[]) {
+export async function applyResponseChanges(
+    parsedResponse: AiResponse,
+    panel: vscode.WebviewPanel | null,
+    context: vscode.ExtensionContext,
+    workspaceFolders: readonly vscode.WorkspaceFolder[] // Changed to readonly
+): Promise<void> {
     console.log('Entering applyResponseChanges with response:', parsedResponse);
-    console.log('Attempting to show prompt...');
 
-    let confirm: string | undefined;
-    try {
-        confirm = await Promise.race([
-            vscode.window.showInformationMessage(
-                parsedResponse.actions.length > 0
-                    ? `Apply these changes? ${parsedResponse.message || 'See actions in response.'}`
-                    : 'No actions to apply. Proceed anyway?',
-                { modal: false },
-                'Yes', 'No'
-            ),
-            new Promise<undefined>((_, reject) => setTimeout(() => reject(new Error('Prompt timed out')), 10000))
-        ]);
-    } catch (e) {
-        console.error('Prompt failed:', e instanceof Error ? e.message : String(e));
-        vscode.window.showErrorMessage('Failed to display apply changes prompt. Applying changes automatically as a fallback.');
-        confirm = 'Yes';
+    // Skip confirmation for insertText actions (used by suggestCode)
+    const requiresConfirmation = !parsedResponse.actions.every(action => action.type === 'insertText');
+    let confirm: string | undefined = 'Yes'; // Default to Yes for non-interactive actions
+
+    if (requiresConfirmation) {
+        try {
+            confirm = await Promise.race([
+                vscode.window.showInformationMessage(
+                    parsedResponse.actions.length > 0
+                        ? `Apply these changes? ${parsedResponse.message || 'See actions in response.'}`
+                        : 'No actions to apply. Proceed anyway?',
+                    { modal: false },
+                    'Yes', 'No'
+                ),
+                new Promise<undefined>((_, reject) => setTimeout(() => reject(new Error('Prompt timed out')), 30000))
+            ]);
+        } catch (e) {
+            console.error('Prompt failed:', e instanceof Error ? e.message : String(e));
+            vscode.window.showErrorMessage('Prompt timed out after 30 seconds. Applying changes automatically.');
+            confirm = 'Yes';
+        }
+
+        if (confirm !== 'Yes') {
+            console.log('User discarded changes or prompt failed.');
+            if (panel) panel.webview.postMessage({ text: 'Changes discarded.' });
+            return;
+        }
     }
 
-    console.log('Prompt displayed, user response:', confirm);
-
-    if (confirm !== 'Yes') {
-        console.log('User discarded changes or prompt failed.');
-        panel.webview.postMessage({ text: 'Changes discarded.' });
-        return;
-    }
-
-    console.log('User confirmed changes, proceeding to apply...');
+    console.log('Proceeding to apply changes...');
     if (parsedResponse.actions.length > 0) {
         console.log('Applying changes...');
         let allSucceeded = true;
 
         for (const action of parsedResponse.actions) {
-            const fullPath = path.join(workspaceFolders[0].uri.fsPath, action.path);
-            const uri = vscode.Uri.file(fullPath);
+            // Handle actions that require a path
+            let sanitizedPath = action.path ? sanitizeFilePath(action.path) : '';
+            let fullPath = action.path ? path.join(workspaceFolders[0].uri.fsPath, sanitizedPath) : '';
+            let uri = action.path ? vscode.Uri.file(fullPath) : null;
 
             try {
                 switch (action.type) {
                     case 'createFolder':
+                        if (!uri) throw new Error('Path is required for createFolder action.');
                         try {
                             await vscode.workspace.fs.stat(uri);
-                            console.log(`Folder already exists: ${action.path}, skipping creation.`);
+                            console.log(`Folder already exists: ${sanitizedPath}, skipping creation.`);
                         } catch {
                             await vscode.workspace.fs.createDirectory(uri);
-                            console.log(`Created folder: ${action.path}`);
+                            console.log(`Created folder: ${sanitizedPath}`);
                         }
                         break;
                     case 'createFile':
+                        if (!uri) throw new Error('Path is required for createFile action.');
                         await vscode.workspace.fs.writeFile(uri, Buffer.from(action.content || '', 'utf8'));
-                        console.log(`Created/Updated file: ${action.path} with content length: ${action.content?.length || 0}`);
+                        console.log(`Created/Updated file: ${sanitizedPath} with content length: ${action.content?.length || 0}`);
                         break;
                     case 'editFile':
+                        if (!uri) throw new Error('Path is required for editFile action.');
                         if (action.range && action.newText) {
                             const document = await vscode.workspace.openTextDocument(uri);
                             const startLine = Math.min(action.range.startLine || 0, document.lineCount - 1);
@@ -136,22 +150,38 @@ export async function applyResponseChanges(parsedResponse: AiResponse, panel: vs
                             const edit = new vscode.WorkspaceEdit();
                             edit.replace(uri, range, action.newText);
                             const success = await vscode.workspace.applyEdit(edit);
-                            console.log(`Edited file: ${action.path} at range:`, range, `Success: ${success}`);
+                            console.log(`Edited file: ${sanitizedPath} at range:`, range, `Success: ${success}`);
                             if (!success) allSucceeded = false;
                         }
                         break;
                     case 'deleteFile':
+                        if (!fullPath) throw new Error('Path is required for deleteFile action.');
                         await deletePath(fullPath);
-                        console.log(`Deleted file: ${action.path}`);
+                        console.log(`Deleted file: ${sanitizedPath}`);
                         break;
                     case 'deleteFolder':
+                        if (!fullPath) throw new Error('Path is required for deleteFolder action.');
                         await deletePath(fullPath);
-                        console.log(`Deleted folder: ${action.path}`);
+                        console.log(`Deleted folder: ${sanitizedPath}`);
                         break;
+                    case 'insertText': {
+                        const editor = vscode.window.activeTextEditor;
+                        if (!editor) {
+                            vscode.window.showErrorMessage('No active editor found to insert text.');
+                            allSucceeded = false;
+                            break;
+                        }
+                        const position = editor.selection.active;
+                        await editor.edit(editBuilder => {
+                            editBuilder.insert(position, action.text || '');
+                        });
+                        console.log(`Inserted text at position: ${position.line}:${position.character}`);
+                        break;
+                    }
                 }
             } catch (e) {
-                console.error(`Error processing action for ${action.path}:`, e);
-                panel.webview.postMessage({ text: `Error processing action for ${action.path}: ${e instanceof Error ? e.message : String(e)}` });
+                console.error(`Error processing action for ${sanitizedPath || action.type}:`, e);
+                if (panel) panel.webview.postMessage({ text: `Error processing action for ${sanitizedPath || action.type}: ${e instanceof Error ? e.message : String(e)}` });
                 allSucceeded = false;
             }
         }
@@ -167,11 +197,18 @@ export async function applyResponseChanges(parsedResponse: AiResponse, panel: vs
 
     const reply = parsedResponse.message || 'No actions specified by AI.';
     console.log('Sending response to webview:', reply);
-    panel.webview.postMessage({ text: reply });
-    console.log('Response sent to webview.');
+    if (panel) {
+        panel.webview.postMessage({ text: reply });
+        console.log('Response sent to webview.');
 
-    const history = context.globalState.get<ChatHistoryItem[]>('chatHistory', []);
-    history.push({ user: '', ai: reply });
-    context.globalState.update('chatHistory', history);
-    console.log('Chat history updated:', history);
+        // Update chat history only if a panel is present (i.e., in chat context)
+        const history = context.globalState.get<ChatHistoryItem[]>('chatHistory', []);
+        history.push({
+            user: '',
+            ai: reply,
+            timestamp: new Date().toISOString()
+        });
+        context.globalState.update('chatHistory', history);
+        console.log('Chat history updated:', history);
+    }
 }

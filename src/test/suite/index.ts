@@ -1,35 +1,36 @@
-import * as assert from 'assert';
 import * as path from 'path';
-import * as fs from 'fs';
 import Mocha from 'mocha';
-import * as vscode from 'vscode';
+import { glob } from 'glob';
 
-export function run(): Promise<void> {
+export async function run(): Promise<void> {
+  // Create the mocha test
   const mocha = new Mocha({
-    ui: 'bdd',
-    timeout: 10000,
+    ui: 'tdd',        // Use TDD UI (Test-Driven Development)
+    color: true,      // Colored output
+    timeout: 60000    // 60 seconds timeout
   });
 
-  mocha.suite.emit('pre-require', global, 'suite', mocha);
+  const testsRoot = path.resolve(__dirname, '.');
 
-  describe('Extension Tests', () => {
-    it('should activate extension', async () => {
-      const extension = vscode.extensions.getExtension('HelpingHand1.my-ai-assistant');
-      console.log('Extension:', extension);
-      assert.ok(extension, 'Extension not found');
-      const activationResult = await extension.activate();
-      console.log('Activation Result:', activationResult);
-      assert.ok(activationResult, 'Extension did not activate successfully');
+  try {
+    // Find all test files using the Promise-based approach for glob v10+
+    const files: string[] = await glob('**/**.test.js', { cwd: testsRoot });
+
+    // Add files to the test suite
+    files.forEach((f: string) => mocha.addFile(path.resolve(testsRoot, f)));
+
+    // Run the mocha test
+    return new Promise<void>((resolve, reject) => {
+      mocha.run((failures: number) => {
+        if (failures > 0) {
+          reject(new Error(`${failures} tests failed.`));
+        } else {
+          resolve();
+        }
+      });
     });
-  });
-
-  return new Promise((resolve, reject) => {
-    mocha.run((failures) => {
-      if (failures > 0) {
-        reject(new Error(`${failures} tests failed.`));
-      } else {
-        resolve();
-      }
-    });
-  });
+  } catch (err) {
+    console.error('Error running tests:', err);
+    throw err;
+  }
 }

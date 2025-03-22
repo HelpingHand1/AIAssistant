@@ -1,140 +1,56 @@
 import * as vscode from 'vscode';
-import axios, { AxiosError } from 'axios';
+import { getApiConfig, getAiResponse } from './api';
+import { buildProjectIndex, applyResponseChanges } from './fileOperations';
+import { ChatHistoryItem, AiResponse } from './types';
+import { formatCodeSnippet, generateUniqueId, truncateString } from './utils';
+import { findGenerator } from './generators';
+
+// Import all generators to ensure they are registered
+import './generators/games';
+import './generators/apps';
 import { debounce } from 'lodash';
-import { getApiConfig } from './api';
-import { buildProjectIndex, applyResponseChanges, readDirectoryRecursive } from './fileOperations';
-import { AiResponse, ChatHistoryItem, Action } from './types';
+
+export async function sendMessage(message: string, panel: vscode.WebviewPanel, context: vscode.ExtensionContext, workspaceFolders: vscode.WorkspaceFolder[]): Promise<void> {
+    try {
+        await buildProjectIndex();
+        let response: AiResponse;
+
+        // Check for a matching generator
+        const generator = findGenerator(message);
+        if (generator) {
+            response = await generator.generate(message);
+        } else {
+            response = await getAiResponse(message) || { actions: [], message: 'Failed to get a response from AI.' };
+        }
+
+        await applyResponseChanges(response, panel, context, workspaceFolders);
+        const displayMessage = response.message.includes('```') 
+            ? formatCodeSnippet(response.message.split('```')[1] || response.message, 'typescript')
+            : truncateString(response.message, 500);
+        panel.webview.postMessage({ command: 'chat', text: displayMessage, id: generateUniqueId('msg') });
+    } catch (error) {
+        console.error('Error sending message:', error);
+        panel.webview.postMessage({ command: 'error', text: 'Failed to send message. Check your API key or network.' });
+    }
+}
+
 
 export const debouncedSendMessage = debounce(async (message: string, panel: vscode.WebviewPanel, context: vscode.ExtensionContext) => {
-    console.log('debouncedSendMessage triggered with message:', message);
-
-    const apiConfig = await getApiConfig();
-    if (!apiConfig.apiKey) {
-        console.log('No API key found, sending error message to webview.');
-        panel.webview.postMessage({ text: 'Please set your OpenAI API key in VS Code settings (myAiAssistant.apiKey)' });
-        return;
-    }
-
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders) {
-        console.log('No workspace found, sending error message to webview.');
-        panel.webview.postMessage({ text: 'No workspace is open.' });
-        return;
-    }
-
-const projectIndex = await buildProjectIndex(); // Ensure projectIndex is defined
-const editor = vscode.window.activeTextEditor;
-const contextText = editor ? editor.document.getText().substring(0, 1000) : 'No active editor';
-const files = await readDirectoryRecursive(workspaceFolders[0].uri);
-const workspaceContext = `Project Context:
-- Workspace Root: ${workspaceFolders[0].uri.fsPath}
-- Project Index (sample): ${Array.isArray(projectIndex) ? JSON.stringify(projectIndex.slice(0, 5)) : 'No index available'}
-- Active File Snippet: ${contextText}
-- Files in Workspace: ${files.map(f => f.path).join(', ')}`;
-    const truncatedContext = workspaceContext.length > 1500 ? workspaceContext.substring(0, 1500) + '...' : workspaceContext;
-    console.log(`Context length: ${truncatedContext.length} characters`);
-
-    const enhancedPrompt = `
-${truncatedContext}
-
-User Query: ${message}
-
-Leverage GPT-4’s advanced reasoning to interpret this request creatively and effectively. Generate complete, high-quality code and file structures, placing files logically based on context (e.g., 'src', 'games', or root). Explain your reasoning and assumptions in the 'message' field. If the request is vague, choose a practical, impressive implementation and justify your choice.
-`;
-
-    let parsedResponse: AiResponse = { actions: [], message: '' };
-    const maxRetries = 2;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-            console.log('Sending API request to OpenAI...', attempt > 0 ? `(Retry ${attempt}/${maxRetries})` : '');
-            const response = await axios.post(
-                apiConfig.endpoint,
-                apiConfig.requestFormat(enhancedPrompt),
-                { headers: { 'Authorization': `Bearer ${apiConfig.apiKey}` } }
-            );
-            const aiResponse = response.data.choices ? response.data.choices[0].message.content : '{}';
-            console.log('Raw AI response:', aiResponse);
-
-            const cleanedResponse = aiResponse.replace(/```(?:json|javascript|python)?\s*|\s*```/g, '').trim();
-            console.log('Cleaned AI response:', cleanedResponse);
-            parsedResponse = JSON.parse(cleanedResponse);
-            console.log('Parsed AI response:', parsedResponse);
-
-            if (!parsedResponse.hasOwnProperty('actions')) {
-                console.log('AI response missing "actions" property, setting to empty array.');
-                parsedResponse.actions = [];
-            }
-            if (!parsedResponse.hasOwnProperty('message')) {
-                console.log('AI response missing "message" property, setting default message.');
-                parsedResponse.message = 'No message provided by AI.';
-            }
-
-            parsedResponse.actions = parsedResponse.actions.map((action: any) => {
-                const normalized: Action = {
-                    type: action.type || action.action || '',
-                    path: action.path || action.filePath || action.folderPath || ''
-                };
-                if (action.content) normalized.content = action.content;
-                if (action.range) normalized.range = action.range;
-                if (action.newText) normalized.newText = action.newText;
-                return normalized;
-            });
-
-            console.log('Validating parsedResponse:', parsedResponse);
-            if (!Array.isArray(parsedResponse.actions)) {
-                console.error('Validation error: AI response does not contain a valid "actions" array');
-                parsedResponse = { 
-                    actions: [], 
-                    message: `Error: AI response does not contain a valid 'actions' array: ${JSON.stringify(parsedResponse)}` 
-                };
-            } else {
-                let hasInvalidAction = false;
-                for (const action of parsedResponse.actions) {
-                    if (!action.type || !action.path) {
-                        console.error('Action validation error: Invalid action in AI response:', action);
-                        hasInvalidAction = true;
-                        break;
-                    }
-                    if (action.type === 'editFile' && (!action.range || !action.newText)) {
-                        console.error('Edit file validation error: "editFile" action missing range or newText:', action);
-                        hasInvalidAction = true;
-                        break;
-                    }
-                }
-                if (hasInvalidAction) {
-                    parsedResponse = { 
-                        actions: [], 
-                        message: `Error: One or more actions in AI response are invalid: ${JSON.stringify(parsedResponse.actions)}` 
-                    };
-                }
-            }
-
-            console.log('Final parsedResponse before applying changes:', parsedResponse);
-            break;
-        } catch (e) {
-            const axiosError = e as AxiosError;
-            const errorDetails = axiosError.response?.data ? JSON.stringify(axiosError.response.data) : axiosError.message;
-            console.error('API Error:', axiosError.message, axiosError.response?.status, errorDetails);
-            if (attempt < maxRetries && (axiosError.code === 'ECONNABORTED' || axiosError.message.includes('Canceled'))) {
-                console.log(`Retrying API request (${attempt + 1}/${maxRetries})...`);
-                await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-                continue;
-            }
-            panel.webview.postMessage({ text: `Error: ${axiosError.message} - ${errorDetails}` });
-            return;
-        }
-    }
-
-    await applyResponseChanges(parsedResponse, panel, context, [...workspaceFolders]);
+    const workspaceFolders = [...(vscode.workspace.workspaceFolders || [])];
+    await sendMessage(message, panel, context, workspaceFolders);
 }, 500);
 
 export async function openChatPanel(context: vscode.ExtensionContext): Promise<void> {
     console.log('openChatPanel called');
 
-    const apiConfig = await getApiConfig();
-    if (!apiConfig.apiKey) {
-        vscode.window.showErrorMessage('Please set your OpenAI API key in VS Code settings (myAiAssistant.apiKey)');
+    try {
+        const apiConfig = await getApiConfig();
+        if (!apiConfig.apiKey) {
+            vscode.window.showErrorMessage('Please set your OpenAI API key in VS Code settings (myAiAssistant.apiKey)');
+            return;
+        }
+    } catch (error) {
+        vscode.window.showErrorMessage('API configuration error. Please check settings.');
         return;
     }
 
@@ -145,11 +61,23 @@ export async function openChatPanel(context: vscode.ExtensionContext): Promise<v
     }
     await buildProjectIndex();
 
-    const panel = vscode.window.createWebviewPanel('aiChat', 'AI Assistant Chat', vscode.ViewColumn.Beside, { enableScripts: true });
+    const panel = vscode.window.createWebviewPanel('aiChat', 'My AI Assistant', vscode.ViewColumn.Beside, {
+        enableScripts: true,
+        retainContextWhenHidden: true
+    });
     console.log('Webview panel created');
 
     const history = context.globalState.get<ChatHistoryItem[]>('chatHistory', []);
-    let historyHtml = history.map(h => `<div class="message user-message">${h.user}</div><div class="message ai-message">${h.ai}</div>`).join('');
+    let historyHtml = history.map(h => `
+        <div class="message user-message" data-timestamp="${h.timestamp || new Date().toISOString()}">
+            <span class="message-content">${h.user || ''}</span>
+            <span class="timestamp">${new Date(h.timestamp || Date.now()).toLocaleTimeString()}</span>
+        </div>
+        <div class="message ai-message" data-timestamp="${h.timestamp || new Date().toISOString()}">
+            <span class="message-content">${h.ai || ''}</span>
+            <span class="timestamp">${new Date(h.timestamp || Date.now()).toLocaleTimeString()}</span>
+        </div>
+    `).join('');
 
     panel.webview.html = `
     <!DOCTYPE html>
@@ -157,61 +85,309 @@ export async function openChatPanel(context: vscode.ExtensionContext): Promise<v
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AI Assistant Chat</title>
+        <title>My AI Assistant</title>
         <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; background: #f5f5f5; color: #333; }
-            #header { background: #007acc; color: white; padding: 10px; font-size: 16px; font-weight: bold; text-align: center; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
-            #chatOutput { flex: 1; overflow-y: auto; padding: 15px; background: #fff; border-bottom: 1px solid #ddd; }
-            .message { margin: 10px 0; padding: 10px; border-radius: 5px; max-width: 80%; word-wrap: break-word; }
-            .user-message { background: #007acc; color: white; margin-left: auto; text-align: right; }
-            .ai-message { background: #e0e0e0; color: #333; margin-right: auto; }
-            #inputArea { display: flex; padding: 10px; background: #fff; border-top: 1px solid #ddd; box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05); }
-            #chatInput { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; resize: none; outline: none; font-size: 14px; }
-            #chatInput:focus { border-color: #007acc; }
-            #sendButton { margin-left: 10px; padding: 10px 20px; background: #007acc; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
-            #sendButton:hover { background: #005f99; }
+            :root {
+                --primary-start: #007acc;
+                --primary-end: #005f99;
+                --background-color: #f9f9f9;
+                --text-color: #333;
+                --message-bg-user: #007acc;
+                --message-bg-ai: #f1f1f1;
+            }
+            [data-theme="dark"] {
+                --background-color: #252526;
+                --text-color: #d4d4d4;
+                --message-bg-user: #004d80;
+                --message-bg-ai: #2c2c2c;
+            }
+            body {
+                font-family: 'Segoe UI', 'Roboto', sans-serif;
+                margin: 0;
+                padding: 0;
+                height: 100vh;
+                display: flex;
+                background: var(--background-color);
+                color: var(--text-color);
+                transition: all 0.3s ease;
+            }
+            #sidebar {
+                width: 220px;
+                background: linear-gradient(135deg, var(--primary-start), var(--primary-end));
+                color: white;
+                padding: 15px 10px;
+                box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
+                overflow-y: auto;
+                transition: transform 0.3s ease-in-out;
+                z-index: 10;
+            }
+            #sidebar.hidden { transform: translateX(-220px); }
+            #sidebar button {
+                display: flex;
+                align-items: center;
+                width: 100%;
+                padding: 10px 15px;
+                margin: 8px 0;
+                background: rgba(255, 255, 255, 0.1);
+                border: none;
+                border-radius: 5px;
+                color: white;
+                font-size: 14px;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                text-align: left;
+            }
+            #sidebar button:hover, #sidebar button.active {
+                background: rgba(255, 255, 255, 0.2);
+                transform: translateX(5px);
+            }
+            #sidebar button::before {
+                content: "▶";
+                margin-right: 10px;
+                opacity: 0.7;
+            }
+            #main-content {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+            #header {
+                background: linear-gradient(90deg, var(--primary-start), var(--primary-end));
+                color: white;
+                padding: 10px 20px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            }
+            #header button {
+                background: transparent;
+                border: none;
+                color: white;
+                cursor: pointer;
+                font-size: 18px;
+                padding: 5px;
+                transition: transform 0.3s;
+            }
+            #header button:hover { transform: rotate(90deg); }
+            #chatOutput {
+                flex: 1;
+                overflow-y: auto;
+                padding: 20px;
+                background: var(--background-color);
+                display: flex;
+                flex-direction: column-reverse;
+            }
+            .message {
+                margin: 10px 0;
+                padding: 12px 18px;
+                border-radius: 10px;
+                max-width: 65%;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                position: relative;
+                animation: slideIn 0.4s ease-out;
+                word-wrap: break-word;
+            }
+            .user-message {
+                background: var(--message-bg-user);
+                color: white;
+                margin-left: auto;
+                align-self: flex-end;
+            }
+            .ai-message {
+                background: var(--message-bg-ai);
+                color: var(--text-color);
+                margin-right: auto;
+                align-self: flex-start;
+            }
+            .message-content { display: block; }
+            .timestamp {
+                font-size: 0.65em;
+                opacity: 0.5;
+                margin-top: 5px;
+                display: block;
+            }
+            #inputArea {
+                display: flex;
+                padding: 15px;
+                background: var(--background-color);
+                border-top: 1px solid #ddd;
+                box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.05);
+            }
+            #chatInput {
+                flex: 1;
+                padding: 12px 15px;
+                border: 2px solid #ddd;
+                border-radius: 8px;
+                resize: vertical;
+                outline: none;
+                font-size: 14px;
+                transition: border-color 0.3s, box-shadow 0.3s;
+            }
+            #chatInput:focus {
+                border-color: var(--primary-start);
+                box-shadow: 0 0 5px rgba(0, 122, 204, 0.3);
+            }
+            #sendButton {
+                margin-left: 10px;
+                padding: 12px 25px;
+                background: linear-gradient(45deg, var(--primary-start), var(--primary-end));
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: transform 0.3s, box-shadow 0.3s;
+            }
+            #sendButton:hover {
+                transform: scale(1.05);
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            }
+            #sendButton:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+                transform: none;
+                box-shadow: none;
+            }
+            .tooltip {
+                position: absolute;
+                background: var(--text-color);
+                color: var(--background-color);
+                padding: 5px 10px;
+                border-radius: 3px;
+                font-size: 12px;
+                visibility: hidden;
+                z-index: 1;
+                top: -25px;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+            button:hover .tooltip { visibility: visible; }
+            @keyframes slideIn {
+                from { opacity: 0; transform: translateY(20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
         </style>
     </head>
     <body>
-        <div id="header">AI Assistant Chat</div>
-        <div id="chatOutput">${historyHtml}</div>
-        <div id="inputArea">
-            <textarea id="chatInput" rows="3" placeholder="Ask me anything..."></textarea>
-            <button id="sendButton" onclick="sendMessage()">Send</button>
+        <div id="sidebar">
+            <button data-command="extension.helloWorld" title="Say Hello" class="tooltip">Hello World</button>
+            <button data-command="extension.modifyProject" title="Modify your project" class="tooltip">Modify Project</button>
+            <button data-command="extension.editSelection" title="Edit selected code" class="tooltip">Edit Selection</button>
+            <button data-command="extension.suggestCode" title="Suggest code at cursor" class="tooltip">Suggest Code</button>
+            <button data-command="extension.undoChanges" title="Undo last AI changes" class="tooltip">Undo Changes</button>
+            <button data-command="extension.openChat" title="Open chat (active)" class="tooltip active">Open Chat</button>
+            <button id="toggleTheme" title="Toggle Light/Dark Theme" class="tooltip">Toggle Theme</button>
+            <button id="settings" title="Configure API Key" class="tooltip">Settings</button>
+        </div>
+        <div id="main-content">
+            <div id="header">
+                <button id="toggleSidebar">☰</button>
+                <h2>My AI Assistant</h2>
+                <span></span>
+            </div>
+            <div id="chatOutput">${historyHtml}</div>
+            <div id="inputArea">
+                <textarea id="chatInput" rows="3" placeholder="Ask me anything..."></textarea>
+                <button id="sendButton">Send</button>
+            </div>
         </div>
         <script>
             const vscode = acquireVsCodeApi();
             const chatOutput = document.getElementById('chatOutput');
             const chatInput = document.getElementById('chatInput');
+            const sendButton = document.getElementById('sendButton');
+            const sidebar = document.getElementById('sidebar');
+            const toggleSidebar = document.getElementById('toggleSidebar');
+            const toggleTheme = document.getElementById('toggleTheme');
+            let isDark = false;
 
-            function sendMessage() {
-                const text = chatInput.value.trim();
-                if (!text) return;
-                console.log('Sending message from webview:', text);
-                appendMessage('user-message', text);
-                vscode.postMessage({ command: 'chat', text: text });
-                chatInput.value = '';
-            }
-
-            function appendMessage(className, text) {
-                const div = document.createElement('div');
-                div.className = 'message ' + className;
-                div.textContent = text;
-                chatOutput.appendChild(div);
-                chatOutput.scrollTop = chatOutput.scrollHeight;
-            }
-
-            window.addEventListener('message', event => {
-                console.log('Received message in webview:', event.data);
-                appendMessage('ai-message', event.data.text);
+            // Toggle sidebar
+            toggleSidebar.addEventListener('click', () => {
+                sidebar.classList.toggle('hidden');
             });
 
+            // Toggle theme
+            toggleTheme.addEventListener('click', () => {
+                isDark = !isDark;
+                document.body.setAttribute('data-theme', isDark ? 'dark' : '');
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            });
+
+            // Load saved theme
+            if (localStorage.getItem('theme') === 'dark') {
+                isDark = true;
+                document.body.setAttribute('data-theme', 'dark');
+            }
+
+            // Command navigation
+            document.querySelectorAll('#sidebar button[data-command]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const command = button.getAttribute('data-command');
+                    document.querySelectorAll('#sidebar button').forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    vscode.postMessage({ command: 'execute', text: command });
+                });
+            });
+
+            // Settings button
+            document.getElementById('settings').addEventListener('click', () => {
+                vscode.postMessage({ command: 'openSettings' });
+            });
+
+            // Send message with enable/disable button
+            function sendMessage() {
+                const text = chatInput.value.trim();
+                if (!text) {
+                    sendButton.disabled = true;
+                    return;
+                }
+                sendButton.disabled = false;
+                const timestamp = new Date().toLocaleTimeString();
+                appendMessage('user-message', text, timestamp);
+                vscode.postMessage({ command: 'chat', text: text });
+                chatInput.value = '';
+                sendButton.disabled = true; // Disable until new input
+            }
+
+            // Append message with timestamp
+            function appendMessage(className, text, timestamp) {
+                const div = document.createElement('div');
+                div.className = 'message ' + className;
+                div.innerHTML = \`<span class="message-content">\${text}</span><span class="timestamp">\${timestamp}</span>\`;
+                chatOutput.prepend(div); // Add to top for reverse chronology
+                chatOutput.scrollTop = 0; // Scroll to latest message
+            }
+
+            // Handle messages from extension
+            window.addEventListener('message', event => {
+                const message = event.data;
+                if (message.command === 'chat') {
+                    appendMessage('ai-message', message.text, new Date().toLocaleTimeString());
+                } else if (message.command === 'execute') {
+                    vscode.postMessage({ command: message.text });
+                } else if (message.command === 'error') {
+                    appendMessage('ai-message', 'Error: ' + message.text, new Date().toLocaleTimeString());
+                }
+            });
+
+            // Input event to enable/disable send button
+            chatInput.addEventListener('input', () => {
+                sendButton.disabled = !chatInput.value.trim();
+            });
+
+            // Send on Enter, allow Shift+Enter for newline
             chatInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     sendMessage();
                 }
             });
+
+            // Send button
+            sendButton.addEventListener('click', sendMessage);
+            sendButton.disabled = true; // Initially disabled
         </script>
     </body>
     </html>
@@ -222,8 +398,10 @@ export async function openChatPanel(context: vscode.ExtensionContext): Promise<v
         if (message.command === 'chat') {
             console.log('Calling debouncedSendMessage with message:', message.text);
             debouncedSendMessage(message.text, panel, context);
-        } else {
-            console.log('Unknown command received:', message.command);
+        } else if (message.command === 'execute') {
+            vscode.commands.executeCommand(message.text);
+        } else if (message.command === 'openSettings') {
+            vscode.commands.executeCommand('workbench.action.openSettings', 'myAiAssistant');
         }
     }, undefined, context.subscriptions);
 }

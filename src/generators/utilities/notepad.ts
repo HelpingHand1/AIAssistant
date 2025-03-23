@@ -1,5 +1,7 @@
 import { AiResponse } from '../../types';
-import { ResponseGenerator, registerGenerator } from '../index';
+import { ResponseGenerator } from '../../types';
+import { registerGenerator } from '../index';
+
 
 const notepadGenerator: ResponseGenerator = {
     name: 'notepad',

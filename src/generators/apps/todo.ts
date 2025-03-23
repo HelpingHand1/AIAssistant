@@ -1,5 +1,6 @@
 import { AiResponse } from '../../types';
-import { ResponseGenerator, registerGenerator } from '../index';
+import { ResponseGenerator } from '../../types';
+import { registerGenerator } from '../index';
 
 const todoAppGenerator: ResponseGenerator = {
     name: 'todoApp',

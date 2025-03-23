@@ -107,7 +107,7 @@
   "devDependencies": {
     "@types/axios-mock-adapter": "^1.10.0",
     "@types/glob": "^8.1.0",
-    "@types/lodash": "^4.17.21",
+    "@types/lodash": "^4.17.16",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.7.5",
     "@types/semver": "^7.5.8",
@@ -119,6 +119,7 @@
     "glob": "^11.0.1",
     "mocha": "^11.1.0",
     "sinon": "^18.0.1",
+    "tiktoken": "^1.0.20",
     "typescript": "^5.6.3"
   },
   "dependencies": {
